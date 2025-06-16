@@ -46,7 +46,7 @@ export default function SignUpForm() {
     const checkUsernameUnique = async () => {
       if (debouncedUsername) {
         setIsCheckingUsername(true);
-        setUsernameMessage(''); // Reset message
+        setUsernameMessage('');
         try {
           const response = await axios.get<ApiResponse>(
             `/api/check-username-unique?username=${debouncedUsername}`
@@ -76,23 +76,21 @@ export default function SignUpForm() {
       });
 
       router.replace(`/verify/${username}`);
-
-      setIsSubmitting(false);
     } catch (error) {
       console.error('Error during sign-up:', error);
 
       const axiosError = error as AxiosError<ApiResponse>;
 
-      // Default error message
-      let errorMessage = axiosError.response?.data.message;
-      ('There was a problem with your sign-up. Please try again.');
+      const errorMessage =
+        axiosError.response?.data.message ??
+        'There was a problem with your sign-up. Please try again.';
 
       toast({
         title: 'Sign Up Failed',
         description: errorMessage,
         variant: 'destructive',
       });
-
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -121,10 +119,10 @@ export default function SignUpForm() {
                       setUsername(e.target.value);
                     }}
                   />
-                  {isCheckingUsername && <Loader2 className="animate-spin" />}
+                  {isCheckingUsername && <Loader2 className="animate-spin h-4 w-4 mt-2" />}
                   {!isCheckingUsername && usernameMessage && (
                     <p
-                      className={`text-sm ${
+                      className={`text-sm mt-1 ${
                         usernameMessage === 'Username is unique'
                           ? 'text-green-500'
                           : 'text-red-500'
@@ -137,6 +135,7 @@ export default function SignUpForm() {
                 </FormItem>
               )}
             />
+
             <FormField
               name="email"
               control={form.control}
@@ -144,7 +143,9 @@ export default function SignUpForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <Input {...field} name="email" />
-                  <p className='text-muted text-gray-400 text-sm'>We will send you a verification code</p>
+                  <p className="text-muted text-gray-400 text-sm">
+                    We will send you a verification code
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -161,7 +162,8 @@ export default function SignUpForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className='w-full' disabled={isSubmitting}>
+
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -173,6 +175,7 @@ export default function SignUpForm() {
             </Button>
           </form>
         </Form>
+
         <div className="text-center mt-4">
           <p>
             Already a member?{' '}
@@ -185,4 +188,3 @@ export default function SignUpForm() {
     </div>
   );
 }
-
