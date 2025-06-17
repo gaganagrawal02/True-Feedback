@@ -1,8 +1,19 @@
-import { NextAuthOptions } from 'next-auth';
+import { NextAuthOptions, User as NextAuthUser } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/dbConnect';
 import UserModel from '@/model/User';
+import { JWT } from 'next-auth/jwt';
+import { AdapterUser } from 'next-auth/adapters';
+
+interface ExtendedUser extends AdapterUser {
+  _id: string;
+  username: string;
+  isVerified: boolean;
+  isAcceptingMessages: boolean;
+  email: string;
+  password: string;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -13,40 +24,52 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials: any): Promise<any> {
+      async authorize(credentials): Promise<ExtendedUser | null> {
         await dbConnect();
-        try {
-          const user = await UserModel.findOne({
-            $or: [
-              { email: credentials.identifier },
-              { username: credentials.identifier },
-            ],
-          });
-          if (!user) {
-            throw new Error('No user found with this email');
-          }
-          if (!user.isVerified) {
-            throw new Error('Please verify your account before logging in');
-          }
-          const isPasswordCorrect = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-          if (isPasswordCorrect) {
-            return user;
-          } else {
-            throw new Error('Incorrect password');
-          }
-        } catch (err: any) {
-          throw new Error(err);
+
+        if (!credentials?.email || !credentials.password) {
+          throw new Error('Email and password are required');
         }
+
+        const user = await UserModel.findOne({
+          $or: [
+            { email: credentials.email },
+            { username: credentials.email },
+          ],
+        });
+
+        if (!user) {
+          throw new Error('No user found with this email or username');
+        }
+
+        if (!user.isVerified) {
+          throw new Error('Please verify your account before logging in');
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
+        if (!isPasswordCorrect) {
+          throw new Error('Incorrect password');
+        }
+
+        return {
+          _id: user._id.toString(),
+          username: user.username,
+          isVerified: user.isVerified,
+          isAcceptingMessages: user.isAcceptingMessages,
+          email: user.email,
+          password: user.password,
+        };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: JWT; user?: ExtendedUser }) {
       if (user) {
-        token._id = user._id?.toString(); // Convert ObjectId to string
+        token._id = user._id;
         token.isVerified = user.isVerified;
         token.isAcceptingMessages = user.isAcceptingMessages;
         token.username = user.username;
@@ -54,11 +77,11 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user._id = token._id;
-        session.user.isVerified = token.isVerified;
-        session.user.isAcceptingMessages = token.isAcceptingMessages;
-        session.user.username = token.username;
+      if (session.user && token) {
+        (session.user as any)._id = token._id;
+        (session.user as any).isVerified = token.isVerified;
+        (session.user as any).isAcceptingMessages = token.isAcceptingMessages;
+        (session.user as any).username = token.username;
       }
       return session;
     },
